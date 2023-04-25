@@ -1,0 +1,78 @@
+\section{Virtio Over Fabrics}\label{sec:Virtio Transport Options / Virtio Over Fabrics}
+
+This section defines specification to Virtio that enables operation over other
+interconnects. A central goal of Virtio Over Fabrics is to maintain consistency
+with the PCI device, so Virtio based devices transparently work over PCI or
+fabrics.
+
+Virtio Over Fabrics uses reliable connection to transmit data in little endian,
+the reliable connection betweens two rules:
+
+\begin{itemize}
+\item An initiator functions as an Virtio Over Fabrics client. An initiator typically serves the same purpose to a machine as a Virtio device, sends commands to remote side.
+\item A target functions as an Virtio Over Fabrics server. An target typically handles commands from the initiator side and responses completions.
+\end{itemize}
+
+Virtio Over Fabrics has the following differences from the PCI based specification:
+
+\begin{itemize}
+\item There is a one-to-one mapping between virtqueue and the reliable connection which execute the vring data transmition.
+\item An additional control connection is required to execute control commands which is similar to read/write register on PCI device.
+\item Virtio Over Fabrics does not define an interrupt mechanism that allows an initiator to generate a host interrupt. It is the responsibility of the host fabric interface to generate host interrupts.
+\end{itemize}
+
+\subsection{Virtio Qualified Name}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Virtio Qualified Name}
+Virtio Qualified Names (VQNs) are used to uniquely describe an initiator or a target for the purposes of identification.
+
+A VQN is encoded as a string of Unicode characters with the following properties:
+
+\begin{itemize}
+\item The encoding is UTF-8 (refer to RFC 3629).
+\item The characters dash('-'), dot ('.') and colon(':') are used in formatting.
+\item The maximum name is 256 bytes in length.
+\item The string is null terminated.
+\end{itemize}
+
+\subsection{Transfer Protocol}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transfer Protocol}
+A control queue or a virtqueue requires to establish a reliable connection firstly, then the initiator sends command to the target and receives completion from the target through the connection.
+TODO
+
+\subsubsection{Commands Definition}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transfer Protocol / Commands Definition}
+TODO XXX
+
+\paragraph{Connect Command}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transfer Protocol / Commands Definition / Connect Command}
+The Connect command is used to establish Virtio Over Fabrics queue. The control queue MUST be established firstly, then the Connect command establishes an association between the initiator and the target. Once the control queue is established, the initiator executes command to get the number of virtqueues, then the initiator establishes virtqueues one by one.
+
+The Target ID of FFFFh is reserved, then:
+\begin{itemize}
+\item The Target ID of FFFFh MUST be specified as the Target ID in a Connect command for the control queue.
+\item The target SHOULD allocate any available Target ID to the initiator, and return the allocated Target ID in the Connect completion.
+\item The returned Target ID MUST be specified as the Target ID, and the Queue ID MUST be specified in a Connect command for the virtqueue.
+\end{itemize}
+
+The Connect command has following structure:
+
+\begin{lstlisting}
+struct virtio_of_command_connect {
+        le16 opcode;
+        le16 command_id;
+        le16 target_id;
+        le16 queue_id;
+        le16 ndesc;
+        u8 oftype;
+        u8 rsvd[5];
+};
+\end{lstlisting}
+
+The Connect commands MUST contains one body structure to specify Initiator VQN and Target VNQ, the body structure has following structure:
+
+\begin{lstlisting}
+struct virtio_of_connect {
+        u8 ivqn[256];
+        u8 tvqn[256];
+        u8 rsvd[512];
+};
+\end{lstlisting}
+
+\begin{lstlisting}
+\end{lstlisting}
