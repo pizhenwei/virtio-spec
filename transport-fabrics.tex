@@ -5,8 +5,7 @@ interconnects. A central goal of Virtio Over Fabrics is to maintain consistency
 with the PCI device, so Virtio based devices transparently work over PCI or
 fabrics.
 
-Virtio Over Fabrics uses reliable connection to transmit data in little endian,
-the reliable connection betweens two rules:
+Virtio Over Fabrics uses reliable connection to transmit data, the reliable connection betweens two rules:
 
 \begin{itemize}
 \item An initiator functions as an Virtio Over Fabrics client. An initiator typically serves the same purpose to a machine as a Virtio device, issues commands to remote side.
@@ -34,25 +33,31 @@ A VQN is encoded as a string of Unicode characters with the following properties
 \end{itemize}
 
 \subsection{Transmition Protocol}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol}
-A control queue or a virtqueue requires to establish a reliable connection firstly, then the initiator issues command to the target and receives completion from the target through the connection.
+This section defines transmition protocol for Virtio Over Fabrics. All the fields use little endian format.
 
 \subsubsection{Segment Descriptor Definition}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Segment Descriptor Definition}
 Virtio Over Fabrics uses the following structure to describe data segment:
+
 \begin{lstlisting}
 struct virtio_of_vring_desc {
         le64 addr;
         le32 length;
+/* This marks the unique ID within a command, no limitation among inflight commands */
         le16 id;
+/* This marks a buffer as keyed transmition (otherwise stream transmition) */
+#define VIRTIO_OF_DESC_F_KEYED     1
+/* This marks a buffer as device write-only (otherwise device read-only). */
+#define VIRTIO_OF_DESC_F_WRITE     2
         le16 flags;
         le32 key;
 };
 \end{lstlisting}
 
-The structure virtio_of_vring_desc is used for both message oriented connection(i.e. RDMA) and stream oriented connection(i.e. TCP). The fields is described as follows:
+The structure virtio_of_vring_desc is used for both keyed transmition(i.e. RDMA) and stream transmition(i.e. TCP). The fields is described as follows:
 
 \begin{tabular}{ |l|l|l| }
 \hline
-Field & message oriented connection & stream oriented connection \\
+Field & keyed transmition & stream transmition \\
 \hline \hline
 addr & Start address of remote memory buffer & Start address within the stream buffer \\
 \hline
@@ -60,13 +65,477 @@ length & The length of remote memory buffer & The length of buffer within the st
 \hline
 id & The ID of this descriptor & The ID of this descriptor \\
 \hline
-flags & Same as flags in struct virtq_desc & Same as flags in struct virtq_desc \\
+flags & both keyed transmition and stream transmition supported & stream transmition only \\
 \hline
 key & Key of the remote Memory Region & Ignore \\
 \hline
 \end{tabular}
 
 Depending on the opcode, a Command contains zero or more structure virtio_of_vring_desc.
+
+\subsubsection{Buffer Mapping Definition}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Buffer Mapping Definition}
+Virtio Over Fabrics defines two types of buffer mapping rules.
+
+\paragraph{Stream Transmition}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Commands Definition / Stream Transmition}
+Command, Segment Descriptors, and buffer are transmitted in a stream within a connection.
+
+An example of a virtio-blk write 8K request(total size: sizeof(Command) + 4 * sizeof(Descriptor) + 8208):
+\begin{lstlisting}
+ COMMAND            +------+
+                    |opcode|  ->  virtio_of_op_vring
+                    +------+
+                    |cmd id|  ->  10
+                    +------+
+                    |length|  ->  8208
+                    +------+
+                    |ndesc |  ->  4
+                    +------+
+                    |rsvd  |
+                    +------+
+
+ DESC0              +------+
+              +-----|addr  |  -> 0
+              |     +------+
+              |     |length|  -> 16 (virtio blk write command)
+              |     +------+
+              |     |id    |  -> 0
+              |     +------+
+              |     |flags |  -> 0
+              |     +------+
+              |
+ DESC1        |     +------+
+              | +---|addr  |  -> 16
+              | |   +------+
+              | |   |length|  -> 4096
+              | |   +------+
+              | |   |id    |  -> 1
+              | |   +------+
+              | |   |flags |  -> 0
+              | |   +------+
+              | |
+ DESC2        | |   +------+
+              | |   |addr  |  -> 4112
+              | |   +------+
+              | | +-|length|  -> 4096
+              | | | +------+
+              | | | |id    |  -> 2
+              | | | +------+
+              | | | |flags |  -> 0
+              | | | +------+
+              | | |
+ DESC3        | | | +------+
+              | | | |addr  |  -> 0
+              | | | +------+
+              | | | |length|  -> 1
+              | | | +------+
+              | | | |id    |  -> 3
+              | | | +------+
+              | | | |flags |  -> VIRTIO_OF_DESC_F_WRITE
+              | | | +------+
+              | | |
+ DATA         +-+-+>+------+  -> 0
+                | | |......|
+                +-+>+------+  -> 16
+                  | |......|
+                  +>+------+  -> 4112
+                    |......|
+                    +------+  -> 8208
+\end{lstlisting}
+
+The Completion of this request(total size: sizeof(Completion) + 1 * sizeof(Descriptor) + 1):
+\begin{lstlisting}
+ COMPLETION         +------+
+                    |status|  ->  VIRTIO_OF_SUCCESS
+                    +------+
+                    |cmd id|  ->  10
+                    +------+
+                    |ndesc |  ->  1
+                    +------+
+                    |rsvd  |
+                    +------+
+                    |value |  -> 1 (value.u32)
+                    +------+
+
+ DESC0              +------+
+                  +-|addr  |  -> 0
+                  | +------+
+                  | |length|  -> 1
+                  | +------+
+                  | |id    |  -> 3
+                  | +------+
+                  | |flags |  -> VIRTIO_OF_DESC_F_WRITE
+                  | +------+
+                  |
+ DATA             |>+------+  -> 0
+                    |......|
+                    +------+  -> 1
+\end{lstlisting}
+
+Another example of a virtio-blk read 8K request(total size: sizeof(Command) + 4 * sizeof(Descriptor) + 16):
+\begin{lstlisting}
+ COMMAND            +------+
+                    |opcode|  ->  virtio_of_op_vring
+                    +------+
+                    |cmd id|  ->  14
+                    +------+
+                    |length|  ->  16 (virtio blk read command)
+                    +------+
+                    |ndesc |  ->  4
+                    +------+
+                    |rsvd  |
+                    +------+
+
+ DESC0              +------+
+                  +-|addr  |  -> 0
+                  | +------+
+                  | |length|  -> 16
+                  | +------+
+                  | |id    |  -> 0
+                  | +------+
+                  | |flags |  -> 0
+                  | +------+
+                  |
+ DESC1            | +------+
+                  | |addr  |  -> 0
+                  | +------+
+                  | |length|  -> 4096
+                  | +------+
+                  | |id    |  -> 1
+                  | +------+
+                  | |flags |  -> VIRTIO_OF_DESC_F_WRITE
+                  | +------+
+                  |
+ DESC2            | +------+
+                  | |addr  |  -> 0
+                  | +------+
+                  | |length|  -> 4096
+                  | +------+
+                  | |id    |  -> 2
+                  | +------+
+                  | |flags |  -> VIRTIO_OF_DESC_F_WRITE
+                  | +------+
+                  |
+ DESC3            | +------+
+                  | |addr  |  -> 0
+                  | +------+
+                  | |length|  -> 1
+                  | +------+
+                  | |id    |  -> 3
+                  | +------+
+                  | |flags |  -> VIRTIO_OF_DESC_F_WRITE
+                  | +------+
+                  |
+ DATA             +>+------+  -> 0
+                    |......|
+                    +------+  -> 16
+\end{lstlisting}
+
+The Completion of this request(total size: sizeof(Completion) + 3 * sizeof(Descriptor) + 8193):
+\begin{lstlisting}
+ COMPLETION         +------+
+                    |status|  ->  VIRTIO_OF_SUCCESS
+                    +------+
+                    |cmd id|  ->  14
+                    +------+
+                    |ndesc |  ->  3
+                    +------+
+                    |rsvd  |
+                    +------+
+                    |value |  -> 8193 (value.u32)
+                    +------+
+
+ DESC0              +------+
+              +-----|addr  |  -> 0
+              |     +------+
+              |     |length|  -> 4096
+              |     +------+
+              |     |id    |  -> 1
+              |     +------+
+              |     |flags |  -> VIRTIO_OF_DESC_F_WRITE
+              |     +------+
+              |
+ DESC1        |     +------+
+              | +---|addr  |  -> 4096
+              | |   +------+
+              | |   |length|  -> 4096
+              | |   +------+
+              | |   |id    |  -> 2
+              | |   +------+
+              | |   |flags |  -> VIRTIO_OF_DESC_F_WRITE
+              | |   +------+
+              | |
+ DESC2        | |   +------+
+              | |   |addr  |  -> 8192
+              | |   +------+
+              | | +-|length|  -> 1
+              | | | +------+
+              | | | |id    |  -> 3
+              | | | +------+
+              | | | |flags |  -> VIRTIO_OF_DESC_F_WRITE
+              | | | +------+
+              | | |
+ DATA         +-+-+>+------+  -> 0
+                | | |......|
+                +-+>+------+  -> 4096
+                  | |......|
+                  +>+------+  -> 8192
+                    |......|
+                    +------+  -> 8193
+\end{lstlisting}
+
+\paragraph{Keyed Transmition}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Commands Definition / Keyed Transmition}
+Command and Segment Descriptors are transmitted in a message within a connection, and buffer is transmitted by remote memory access.
+
+An example of a virtio-blk write 8K request(message size: sizeof(Command) + 4 * sizeof(Descriptor)):
+\begin{lstlisting}
+ COMMAND            +------+
+                    |opcode|  ->  virtio_of_op_vring
+                    +------+
+                    |cmd id|  ->  10
+                    +------+
+                    |length|  ->  0
+                    +------+
+                    |ndesc |  ->  4
+                    +------+
+                    |rsvd  |
+                    +------+
+
+ DESC0              +------+
+                    |addr  |  -> 0xffff012345670000
+                    +------+
+                    |length|  -> 16 (virtio blk write command)
+                    +------+
+                    |id    |  -> 0
+                    +------+
+                    |flags |  -> VIRTIO_OF_DESC_F_KEYED
+                    +------+
+                    |key   |  -> 0x1234
+                    +------+
+
+ DESC1              +------+
+                    |addr  |  -> 0xffff012345671000
+                    +------+
+                    |length|  -> 4096
+                    +------+
+                    |id    |  -> 1
+                    +------+
+                    |flags |  -> VIRTIO_OF_DESC_F_KEYED
+                    +------+
+                    |key   |  -> 0x1236
+                    +------+
+
+ DESC2              +------+
+                    |addr  |  -> 0xffff012345673000
+                    +------+
+                    |length|  -> 4096
+                    +------+
+                    |id    |  -> 2
+                    +------+
+                    |flags |  -> VIRTIO_OF_DESC_F_KEYED
+                    +------+
+                    |key   |  -> 0x1238
+                    +------+
+
+ DESC3              +------+
+                    |addr  |  -> 0xffff012345677000
+                    +------+
+                    |length|  -> 1
+                    +------+
+                    |id    |  -> 3
+                    +------+
+                    |flags |  -> VIRTIO_OF_DESC_F_KEYED | VIRTIO_OF_DESC_F_WRITE
+                    +------+
+                    |key   |  -> 0x1239
+                    +------+
+\end{lstlisting}
+
+The target handles Command, reads the remote addresses of DESC0/DESC1/DESC2, writes the remote address of DESC3, then responses Completion:
+\begin{lstlisting}
+ COMPLETION         +------+
+                    |status|  ->  VIRTIO_OF_SUCCESS
+                    +------+
+                    |cmd id|  ->  10
+                    +------+
+                    |ndesc |  ->  0
+                    +------+
+                    |rsvd  |
+                    +------+
+                    |value |  -> 1 (value.u32)
+                    +------+
+\end{lstlisting}
+
+Another example of a virtio-blk read 8K request(message size: sizeof(Command) + 4 * sizeof(Descriptor)):
+\begin{lstlisting}
+ COMMAND            +------+
+                    |opcode|  ->  virtio_of_op_vring
+                    +------+
+                    |cmd id|  ->  10
+                    +------+
+                    |length|  ->  0
+                    +------+
+                    |ndesc |  ->  4
+                    +------+
+                    |rsvd  |
+                    +------+
+
+ DESC0              +------+
+                    |addr  |  -> 0xffff012345670000
+                    +------+
+                    |length|  -> 16 (virtio blk write command)
+                    +------+
+                    |id    |  -> 0
+                    +------+
+                    |flags |  -> VIRTIO_OF_DESC_F_KEYED
+                    +------+
+                    |key   |  -> 0x1234
+                    +------+
+
+ DESC1              +------+
+                    |addr  |  -> 0xffff012345671000
+                    +------+
+                    |length|  -> 4096
+                    +------+
+                    |id    |  -> 1
+                    +------+
+                    |flags |  -> VIRTIO_OF_DESC_F_KEYED | VIRTIO_OF_DESC_F_WRITE
+                    +------+
+                    |key   |  -> 0x1236
+                    +------+
+
+ DESC2              +------+
+                    |addr  |  -> 0xffff012345673000
+                    +------+
+                    |length|  -> 4096
+                    +------+
+                    |id    |  -> 2
+                    +------+
+                    |flags |  -> VIRTIO_OF_DESC_F_KEYED | VIRTIO_OF_DESC_F_WRITE
+                    +------+
+                    |key   |  -> 0x1238
+                    +------+
+
+ DESC3              +------+
+                    |addr  |  -> 0xffff012345677000
+                    +------+
+                    |length|  -> 1
+                    +------+
+                    |id    |  -> 3
+                    +------+
+                    |flags |  -> VIRTIO_OF_DESC_F_KEYED | VIRTIO_OF_DESC_F_WRITE
+                    +------+
+                    |key   |  -> 0x1239
+                    +------+
+\end{lstlisting}
+
+The target handles Command, reads the remote address of DESC0, writes the remote addresses of DESC1/DESC2/DESC3, then responses Completion:
+\begin{lstlisting}
+ COMPLETION         +------+
+                    |status|  ->  VIRTIO_OF_SUCCESS
+                    +------+
+                    |cmd id|  ->  10
+                    +------+
+                    |ndesc |  ->  0
+                    +------+
+                    |rsvd  |
+                    +------+
+                    |value |  -> 8193 (value.u32)
+                    +------+
+\end{lstlisting}
+
+For effective transmition, stream Segment Descriptors and keyed Segment Descriptors are allowed to use together in a single Command.
+
+\begin{itemize}
+\item The initiator MAY discover the maximum stream transmition size of a Command supported by target. See \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_feature}.
+\item The initiator MAY set the maximum stream transmition size of a Command supported by initiator. See \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_set_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_set_feature}.
+\end{itemize}
+
+An example of 16 bytes maximum stream transmition size supported by target, and 1 byte maximum stream transmition size supported by initiator, a virtio-blk read 8K request(total size: sizeof(Command) + 4 * sizeof(Descriptor) + 16):
+\begin{lstlisting}
+ COMMAND            +------+
+                    |opcode|  ->  virtio_of_op_vring
+                    +------+
+                    |cmd id|  ->  100
+                    +------+
+                    |length|  ->  16 (virtio blk read command)
+                    +------+
+                    |ndesc |  ->  4
+                    +------+
+                    |rsvd  |
+                    +------+
+
+ DESC0              +------+
+                  +-|addr  |  -> 0
+                  | +------+
+                  | |length|  -> 16
+                  | +------+
+                  | |id    |  -> 0
+                  | +------+
+                  | |flags |  -> 0
+                  | +------+
+                  |
+ DESC1            | +------+
+                  | |addr  |  -> 0
+                  | +------+
+                  | |length|  -> 4096
+                  | +------+
+                  | |id    |  -> 1
+                  | +------+
+                  | |flags |  -> VIRTIO_OF_DESC_F_KEYED | VIRTIO_OF_DESC_F_WRITE
+                  | +------+
+                  |
+ DESC2            | +------+
+                  | |addr  |  -> 0
+                  | +------+
+                  | |length|  -> 4096
+                  | +------+
+                  | |id    |  -> 2
+                  | +------+
+                  | |flags |  -> VIRTIO_OF_DESC_F_KEYED | VIRTIO_OF_DESC_F_WRITE
+                  | +------+
+                  |
+ DESC3            | +------+
+                  | |addr  |  -> 0
+                  | +------+
+                  | |length|  -> 1
+                  | +------+
+                  | |id    |  -> 3
+                  | +------+
+                  | |flags |  -> VIRTIO_OF_DESC_F_WRITE
+                  | +------+
+                  |
+ DATA             +>+------+  -> 0
+                    |......|
+                    +------+  -> 16
+\end{lstlisting}
+
+The target handles Command, reads 16 bytes from request described by DESC0, writes the remote addresses of DESC1/DESC2, then responses Completion(total size: sizeof(Completion) + sizeof(Descriptor) + 1):
+\begin{lstlisting}
+ COMPLETION         +------+
+                    |status|  ->  VIRTIO_OF_SUCCESS
+                    +------+
+                    |cmd id|  ->  10
+                    +------+
+                    |ndesc |  ->  1
+                    +------+
+                    |rsvd  |
+                    +------+
+                    |value |  -> 1 (value.u32)
+                    +------+
+
+ DESC0              +------+
+                  +-|addr  |  -> 0
+                  | +------+
+                  | |length|  -> 1
+                  | +------+
+                  | |id    |  -> 3
+                  | +------+
+                  | |flags |  -> VIRTIO_OF_DESC_F_WRITE
+                  | +------+
+                  |
+ DATA             |>+------+  -> 0
+                    |......|
+                    +------+  -> 1
+\end{lstlisting}
 
 \subsubsection{Commands Definition}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Commands Definition}
 This section defines command structures for Virtio Over Fabrics.
@@ -80,15 +549,16 @@ A common structure virtio_of_value is fixed to 8 bytes and MUST be used as one o
 \item le64
 \end{itemize}
 
+\paragraph{Command ID}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Commands Definition / Command ID}
 There is command_id(le16) field in each Command and Completion:
 
 \begin{itemize}
 \item Generally the initiator allocates a Command ID and specifies the command_id field of a Command, and the target MUST specifies the same Command ID in command_id field of Completion.
 \item The initiator MUST guarantee each Command ID is unique in the inflight Commands.
-\item Command ID FF00h - 0xffff is reserved for control queue to delivery asynchronous event.
+\item Command ID 0xff00 - 0xffff is reserved for control queue to delivery asynchronous event.
 \end{itemize}
 
-The reserved Command ID for control queue as follows:
+The reserved Command ID for control queue is defined as follows:
 
 \begin{tabular}{ |l|l| }
 \hline
@@ -121,6 +591,8 @@ struct virtio_of_command_connect {
         le16 target_id;
         le16 queue_id;
         le16 ndesc;
+#define VIRTIO_OF_CONNECTION_TCP     1
+#define VIRTIO_OF_CONNECTION_RDMA    2
         u8 oftype;
         u8 padding[5];
 };
@@ -141,7 +613,7 @@ struct virtio_of_connect {
 The control queue uses Feature Command to get or set features on device. This command is used for:
 
 \begin{itemize}
-\item The Target features.
+\item The target features.
 \item The device features.
 \end{itemize}
 
@@ -212,7 +684,9 @@ Both control queue and virtqueue use Vring Command to transmit buffer. The Vring
 struct virtio_of_command_vring {
         le16 opcode;
         le16 command_id;
+	/* Total buffer size this command contains(not include command&descriptors). */
         le32 length;
+	/* How many descriptors this command contains */
         le16 ndesc;
         u8 padding[6];
 };
@@ -226,6 +700,7 @@ The target responses Completion to the initiator to report command status, devic
 struct virtio_of_completion {
         le16 status;
         le16 command_id;
+	/* How many descriptors this completion contains */
         le16 ndesc;
         u8 rsvd6;
         u8 rsvd7;
@@ -233,87 +708,108 @@ struct virtio_of_completion {
 };
 \end{lstlisting}
 
+Note that Virtio Over Fabrics does not define an interrupt mechanism, generally the initiator receives a Completion, it SHOULD generate a host interrupt(if no interrupt suspending on device).
+
 \subsubsection{Opcodes Definition}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition}
-This section defines command opcodes for Virtio Over Fabrics.
+This section defines command opcodes for Virtio Over Fabrics:
 
-\paragraph{virtio_of_op_connect Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_connect Opcode}
+\begin{lstlisting}
+#define virtio_of_op_connect
+#define virtio_of_op_discconnect
+#define virtio_of_op_get_feature
+#define virtio_of_op_set_feature
+#define virtio_of_op_keepalive
+#define virtio_of_op_vring
+#define virtio_of_op_get_vendor_id
+#define virtio_of_op_get_device_id
+#define virtio_of_op_get_generation
+#define virtio_of_op_get_status
+#define virtio_of_op_set_status
+#define virtio_of_op_get_device_feature
+#define virtio_of_op_set_driver_feature
+#define virtio_of_op_get_num_queues
+#define virtio_of_op_get_queue_size
+#define virtio_of_op_get_config
+#define virtio_of_op_set_config
+\end{lstlisting}
 
-virtio_of_op_connect(0x0) Opcode is used to connect a target for both control queue and virtqueue. The initiator MUST issue a Connect Command and specify the ndesc field as 1, also contains 1 structure virtio_of_vring_desc filled by structure virtio_of_command_status.
+\paragraph{virtio_of_op_connect}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_connect}
 
-\paragraph{virtio_of_op_discconnect Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_discconnect Opcode}
+virtio_of_op_connect is used to connect a target for both control queue and virtqueue. The initiator MUST issue a Connect Command and specify the ndesc field as 1, also contains 1 structure virtio_of_vring_desc filled by structure virtio_of_command_status.
 
-virtio_of_op_discconnect(0x1) Opcode is used to disconnect a target for both control queue and virtqueue. The initiator MUST issue a Common Command.
+\paragraph{virtio_of_op_discconnect}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_discconnect}
 
+virtio_of_op_discconnect is used to disconnect a target for both control queue and virtqueue. The initiator MUST issue a Common Command.
 
-\paragraph{virtio_of_op_get_feature Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_feature Opcode}
+\paragraph{virtio_of_op_get_feature}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_feature}
 
-virtio_of_op_get_feature(0x2) Opcode is used to get features of target for control queue only. The initiator MUST issue a Feature Command.
+virtio_of_op_get_feature is used to get features of target for control queue only. The initiator MUST issue a Feature Command.
 
 \begin{tabular}{ |l|l|l| }
 \hline
 Feature Select & Value & Description \\
 \hline
-virtio_of_feature_max_segment & 0x0 & Get the maximum segments supported by target \\
+virtio_of_feature_max_segment & 0x0 & Get the maximum segments within a Vring Command supported by target \\
 \hline
-virtio_of_feature_inline_size & 0x1 & Get/set inline buffer size for message oriented connection \\
+virtio_of_feature_stream_size & 0x1 & Get the target/set the initiator stream buffer size of a Command \\
 \hline
 \end{tabular}
 
-\paragraph{virtio_of_op_set_feature Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_set_feature Opcode}
+\paragraph{virtio_of_op_set_feature}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_set_feature}
 
-virtio_of_op_set_feature(0x3) Opcode is used to set features of initiator for control queue only. The initiator MUST issue a Feature Command.
+virtio_of_op_set_feature is used to set features of initiator for control queue only. The initiator MUST issue a Feature Command.
 
-\paragraph{virtio_of_op_keepalive Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_keepalive Opcode}
+\paragraph{virtio_of_op_keepalive}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_keepalive}
 
-virtio_of_op_keepalive(0x4) Opcode is used to keep alive with the target for control queue only. The initiator MUST issue a Common Command.
+virtio_of_op_keepalive is used to keep alive with the target for control queue only. The initiator MUST issue a Common Command.
 
-\paragraph{virtio_of_op_vring Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_vring Opcode}
+\paragraph{virtio_of_op_vring}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_vring}
 
-virtio_of_op_vring(0xfff) Opcode is used to transmit buffer of device for virtqueue only. The initiator MUST issues Vring Command and specify the ndesc field as the number of buffer segments, also contains ndesc structure virtio_of_vring_desc. Each structure virtio_of_vring_desc is filled by each buffer segment one by one.
+virtio_of_op_vring is used to transmit buffer of device for virtqueue only. The initiator MUST issues Vring Command and specify the ndesc field as the number of buffer segments, also contains ndesc structure virtio_of_vring_desc. Each structure virtio_of_vring_desc is filled by each buffer segment one by one.
 
-\paragraph{virtio_of_op_get_vendor_id Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_vendor_id Opcode}
+\paragraph{virtio_of_op_get_vendor_id}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_vendor_id}
 
-virtio_of_op_get_vendor_id(0x1000) Opcode is used to get vendor id for control queue only. The initiator MUST issue a Common Command, and reads from value field of Completion as le32.
+virtio_of_op_get_vendor_id is used to get vendor id for control queue only. The initiator MUST issue a Common Command, and reads from value field of Completion as le32.
 
-\paragraph{virtio_of_op_get_device_id Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_device_id Opcode}
+\paragraph{virtio_of_op_get_device_id}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_device_id}
 
-virtio_of_op_get_device_id(0x1001) Opcode is used to get device id for control queue only. The initiator MUST issue a Common Command, and reads from value field of Completion as le32.
+virtio_of_op_get_device_id is used to get device id for control queue only. The initiator MUST issue a Common Command, and reads from value field of Completion as le32.
 
-\paragraph{virtio_of_op_get_generation Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_generation Opcode}
+\paragraph{virtio_of_op_get_generation}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_generation}
 
-virtio_of_op_get_generation(0x1002) Opcode is used to get config generation for control queue only. The initiator MUST issue a Common Command, and reads from value field of Completion as le32.
+virtio_of_op_get_generation is used to get config generation for control queue only. The initiator MUST issue a Common Command, and reads from value field of Completion as le32.
 
-\paragraph{virtio_of_op_get_status Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_status Opcode}
+\paragraph{virtio_of_op_get_status}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_status}
 
-virtio_of_op_get_status(0x1003) Opcode is used to get device status for control queue only. The initiator MUST issue a Common Command, and reads from value field of Completion as le32.
+virtio_of_op_get_status is used to get device status for control queue only. The initiator MUST issue a Common Command, and reads from value field of Completion as le32.
 
-\paragraph{virtio_of_op_set_status Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_set_status Opcode}
+\paragraph{virtio_of_op_set_status}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_set_status}
 
-virtio_of_op_set_status(0x1004) Opcode is used to set device status for control queue only. The initiator MUST issue a Common Command, and specify the value field of Common Command as le32.
+virtio_of_op_set_status is used to set device status for control queue only. The initiator MUST issue a Common Command, and specify the value field of Common Command as le32.
 
-\paragraph{virtio_of_op_get_device_feature Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_device_feature Opcode}
+\paragraph{virtio_of_op_get_device_feature}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_device_feature}
 
-virtio_of_op_get_device_feature(0x1005) Opcode is used to get device feature for control queue only. The initiator MUST issue a Feature Command, and reads from value field of Completion as le64.
+virtio_of_op_get_device_feature is used to get device feature for control queue only. The initiator MUST issue a Feature Command, and reads from value field of Completion as le64.
 
 The initiator uses feature_select field to select which feature bits to get. Value 0x0 selects Feature Bits 0 to 63, 0x1 selects Feature Bits 64 to 128, etc.
 
-\paragraph{virtio_of_op_set_driver_feature Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_set_driver_feature Opcode}
+\paragraph{virtio_of_op_set_driver_feature}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_set_driver_feature}
 
-virtio_of_op_set_driver_feature(0x1006) Opcode is used to set driver feature for control queue only. The initiator MUST issue a Feature Command, and specify the value field of Common Command as le64.
+virtio_of_op_set_driver_feature is used to set driver feature for control queue only. The initiator MUST issue a Feature Command, and specify the value field of Common Command as le64.
 
 The initiator uses feature_select field to select which feature bits to set. Value 0x0 selects Feature Bits 0 to 63, 0x1 selects Feature Bits 64 to 128, etc.
 
-\paragraph{virtio_of_op_get_num_queues Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_num_queues Opcode}
+\paragraph{virtio_of_op_get_num_queues}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_num_queues}
 
-virtio_of_op_get_num_queues(0x1007) Opcode is used to get the number of queues for control queue only. The initiator MUST issue a Common Command, and reads from value field of Completion as le16.
+virtio_of_op_get_num_queues is used to get the number of queues for control queue only. The initiator MUST issue a Common Command, and reads from value field of Completion as le16.
 
-\paragraph{virtio_of_op_get_queue_size Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_queue_size Opcode}
+\paragraph{virtio_of_op_get_queue_size}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_queue_size}
 
-virtio_of_op_get_queue_size(0x1008) Opcode is used to get the size of a specified queue for control queue only. The initiator MUST issue a Queue Command with specified queue_id, and reads from value field of Completion as le16.
+virtio_of_op_get_queue_size is used to get the size of a specified queue for control queue only. The initiator MUST issue a Queue Command with specified queue_id, and reads from value field of Completion as le16.
 
-\paragraph{virtio_of_op_get_config Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_config Opcode}
+\paragraph{virtio_of_op_get_config}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_config}
 
-virtio_of_op_get_config(0x1009) Opcode is used to get the config of a device for control queue only. The initiator MUST issue a Config Command with specified offset and bytes, and reads from value field of Completion.
+virtio_of_op_get_config is used to get the config of a device for control queue only. The initiator MUST issue a Config Command with specified offset and bytes, and reads from value field of Completion.
 
 The bytes field supports only:
 
@@ -324,9 +820,9 @@ The bytes field supports only:
 \item 8, then the initiator reads from value field of Completion as le64
 \end{itemize}
 
-\paragraph{virtio_of_op_set_config Opcode}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_set_config Opcode}
+\paragraph{virtio_of_op_set_config}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_set_config}
 
-virtio_of_op_set_config(0x100a) Opcode is used to set the config of a device for control queue only. The initiator MUST issue a Config Command with specified offset and bytes and value fileds.
+virtio_of_op_set_config is used to set the config of a device for control queue only. The initiator MUST issue a Config Command with specified offset and bytes and value fileds.
 
 The bytes field supports only:
 
@@ -478,15 +974,19 @@ This section defines status for Virtio Over Fabrics Completion.
 #define VIRTIO_OF_EQUIRK 4096
 \end{lstlisting}
 
+\subsection{Transport Binding}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transport Binding}
+\subsubsection{TCP}\label{sec:Virtio Transport Options / Virtio Over Fabrics / ransport Binding / TCP}
+TCP MUST use \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Commands Definition / Stream Transmition}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Commands Definition / Stream Transmition}.
+
+\subsubsection{RDMA}\label{sec:Virtio Transport Options / Virtio Over Fabrics / ransport Binding / RDMA}
+RDMA MUST use \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Commands Definition / Keyed Transmition}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Commands Definition / Keyed Transmition}.
 
 \subsection{Device Initialization}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Device Initialization}
-A control queue or a virtqueue requires to establish a reliable connection firstly, then the initiator issues command to the target and receives completion from the target through the connection.
-
-
-
-
-
-
-
-
-
+\begin{enumerate}
+\item The control queue MUST be established firstly, once the reliable connection is ready, the initiator MUST issue \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_connect}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_connect} to create association with the target.
+\item The initiator SHOULD issue \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_feature} to discover the capabilities offered by the target.
+\item The initiator SHOULD issue \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_set_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_set_feature} to negotiate the capabilities.
+\item The initiator SHOULD continue initialization like PCI base devices, i.e. issue \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_vendor_id}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_vendor_id} to get the vendor ID.
+\item After discovering the number of virtqueues by \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_num_queues}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_get_num_queues}, the initiator SHOULD create virtqueue one by one by \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_connect}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_connect}.
+\item The virtqueue SHOULD issue \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_vring}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmition Protocol / Opcodes Definition / virtio_of_op_vring} to transmit buffer.
+\end{enumerate}
