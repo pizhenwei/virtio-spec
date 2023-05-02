@@ -15,7 +15,7 @@ Virtio Over Fabrics uses reliable connection to transmit data, the reliable conn
 Virtio Over Fabrics has the following differences from the PCI based specification:
 
 \begin{itemize}
-\item There is a one-to-one mapping between virtqueue and the reliable connection which executes the vring data Transmission.
+\item There is a one-to-one mapping between virtqueue and the reliable connection which executes the vring data transmission.
 \item An additional control connection is required to execute control commands which is similar to read/write register on a PCI device.
 \item Virtio Over Fabrics does not define an interrupt mechanism that allows an initiator to generate a host interrupt. It is the responsibility of the host fabric interface to generate host interrupts.
 \end{itemize}
@@ -77,7 +77,21 @@ Depending on the opcode, a Command contains zero or more structure virtio_of_vri
 Virtio Over Fabrics defines two types of buffer mapping rules.
 
 \paragraph{Stream Transmission}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Stream Transmission}
-Command, Segment Descriptors, and buffer are transmitted in a stream within a connection.
+Command, Segment Descriptors, and buffer are transmitted in a stream within a connection. The layout in stream:
+
+\begin{lstlisting}
+CMDx contains 0 descriptor, CMDy contains (n - m + 1) descriptors and buffer:
+
+     +-----+     +-----++-----+     +-----++-----+
+ ... | CMDx| ... | CMDy||DESCm| ... |DESCn|| BUF | ...
+     +-----+     +-----++-----+     +-----++-----+
+
+COMPx contains 0 descriptor, COMPy contains (k - j + 1) descriptors and buffer:
+
+     +-----+     +-----++-----+     +-----++-----+
+ ... |COMPx| ... |COMPy||DESCj| ... |DESCk|| BUF | ...
+     +-----+     +-----++-----+     +-----++-----+
+\end{lstlisting}
 
 An example of a virtio-blk write 8K request(total size: sizeof(Command) + 4 * sizeof(Descriptor) + 8208):
 \begin{lstlisting}
@@ -114,9 +128,9 @@ An example of a virtio-blk write 8K request(total size: sizeof(Command) + 4 * si
               | |   +------+
               | |
  DESC2        | |   +------+
-              | |   |addr  |  -> 4112
-              | |   +------+
-              | | +-|length|  -> 4096
+              | | +-|addr  |  -> 4112
+              | | | +------+
+              | | | |length|  -> 4096
               | | | +------+
               | | | |id    |  -> 2
               | | | +------+
@@ -265,9 +279,9 @@ The Completion of this request(total size: sizeof(Completion) + 3 * sizeof(Descr
               | |   +------+
               | |
  DESC2        | |   +------+
-              | |   |addr  |  -> 8192
-              | |   +------+
-              | | +-|length|  -> 1
+              | | +-|addr  |  -> 8192
+              | | | +------+
+              | | | |length|  -> 1
               | | | +------+
               | | | |id    |  -> 3
               | | | +------+
@@ -284,7 +298,21 @@ The Completion of this request(total size: sizeof(Completion) + 3 * sizeof(Descr
 \end{lstlisting}
 
 \paragraph{Keyed Transmission}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Keyed Transmission}
-Command and Segment Descriptors are transmitted in a message within a connection, and buffer is transmitted by remote memory access.
+Command and Segment Descriptors are transmitted in a message within a connection, and buffer is transmitted by remote memory access.  The layout in message:
+
+\begin{lstlisting}
+CMDx contains 0 descriptor, CMDy contains (n - m + 1) descriptors:
+
+     +-----+     +-----++-----+     +-----+
+ ... | CMDx| ... | CMDy||DESCm| ... |DESCn| ...
+     +-----+     +-----++-----+     +-----+
+
+COMPx contains 0 descriptor, COMPy contains 0 descriptor:
+
+     +-----+     +-----+
+ ... |COMPx| ... |COMPy| ...
+     +-----+     +-----+
+\end{lstlisting}
 
 An example of a virtio-blk write 8K request(message size: sizeof(Command) + 4 * sizeof(Descriptor)):
 \begin{lstlisting}
@@ -700,7 +728,7 @@ struct virtio_of_command_vring {
 
 \paragraph{Completion}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Completion}
 
-The target responses Completion to the initiator to report command status, device properties, and transmit device buffer. The Completion has following structure:
+The target responses Completion to the initiator to report command status, device properties, and transmit buffer. The Completion has following structure:
 
 \begin{lstlisting}
 struct virtio_of_completion {
@@ -771,7 +799,7 @@ virtio_of_op_keepalive is used to keep alive with the target for control queue o
 
 \paragraph{virtio_of_op_vring}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_vring}
 
-virtio_of_op_vring is used to transmit buffer of device for virtqueue only. The initiator MUST issues \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Vring Command} and specify the ndesc field as the number of buffer segments, also contains ndesc structure virtio_of_vring_desc. Each structure virtio_of_vring_desc is filled by each buffer segment one by one.
+virtio_of_op_vring is used to transmit buffer for both control queue and virtqueue. The initiator MUST issues \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Vring Command} and specify the ndesc field as the number of buffer segments, also contains ndesc structure virtio_of_vring_desc. Each structure virtio_of_vring_desc is filled by each buffer segment one by one.
 
 \paragraph{virtio_of_op_get_vendor_id}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_vendor_id}
 
