@@ -5,35 +5,48 @@ interconnects. A central goal of Virtio Over Fabrics is to maintain consistency
 with the PCI device, so Virtio based devices transparently work over PCI or
 fabrics.
 
-Virtio Over Fabrics uses reliable connection to transmit data, the reliable connection betweens two rules:
+Virtio Over Fabrics uses reliable connection to transmit data, the reliable
+connection betweens two rules:
 
 \begin{itemize}
-\item An initiator functions as an Virtio Over Fabrics client. An initiator typically serves the same purpose to a machine as a Virtio device, issues commands to remote side.
-\item A target functions as an Virtio Over Fabrics server. An target typically handles commands from the initiator side and responses completions.
+\item An initiator functions as an Virtio Over Fabrics client. An initiator
+typically serves the same purpose to a machine as a Virtio device, issues
+commands to remote side.
+\item A target functions as an Virtio Over Fabrics server. An target typically
+handles commands from the initiator side and responses completions.
 \end{itemize}
 
-Virtio Over Fabrics has the following differences from the PCI based specification:
+Virtio Over Fabrics has the following differences from the PCI based
+specification:
 
 \begin{itemize}
-\item There is a one-to-one mapping between virtqueue and the reliable connection which executes the vring data transmission.
-\item An additional control connection is required to execute control commands which is similar to read/write register on a PCI device.
-\item Virtio Over Fabrics does not define an interrupt mechanism that allows an initiator to generate a host interrupt. It is the responsibility of the host fabric interface to generate host interrupts.
+\item There is a one-to-one mapping between virtqueue and the reliable
+connection which executes the vring data transmission.
+\item An additional control connection is required to execute control commands
+which is similar to read/write register on a PCI device.
+\item Virtio Over Fabrics does not define an interrupt mechanism that allows an
+initiator to generate a host interrupt. It is the responsibility of the host
+fabric interface to generate host interrupts.
 \end{itemize}
 
 \subsection{Virtio Qualified Name}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Virtio Qualified Name}
-Virtio Qualified Names (VQNs) are used to uniquely describe an initiator or a target for the purposes of identification.
+Virtio Qualified Names (VQNs) are used to uniquely describe an initiator or a
+target for the purposes of identification.
 
-A VQN is encoded as a string of Unicode characters with the following properties:
+A VQN is encoded as a string of Unicode characters with the following
+properties:
 
 \begin{itemize}
 \item The encoding is UTF-8 (refer to RFC 3629).
-\item The characters dash('-'), dot ('.'), slash('/') and colon(':') are used in formatting.
+\item The characters dash('-'), dot ('.'), slash('/') and colon(':') are used
+in formatting.
 \item The maximum name is 256 bytes in length.
 \item The string is null terminated.
 \end{itemize}
 
 \subsection{Transmission Protocol}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol}
-This section defines Transmission protocol for Virtio Over Fabrics. All the fields use little endian format.
+This section defines Transmission protocol for Virtio Over Fabrics. All the
+fields use little endian format.
 
 \subsubsection{Segment Descriptor Definition}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Segment Descriptor Definition}
 Virtio Over Fabrics uses the following structure to describe data segment:
@@ -53,7 +66,8 @@ struct virtio_of_vring_desc {
 };
 \end{lstlisting}
 
-The structure virtio_of_vring_desc is used for both keyed Transmission(i.e. RDMA) and stream Transmission(i.e. TCP). The fields is described as follows:
+The structure virtio_of_vring_desc is used for both keyed Transmission
+(i.e. RDMA) and stream Transmission(i.e. TCP). The fields is described as follows:
 
 \begin{tabular}{ |l|l|l| }
 \hline
@@ -77,7 +91,8 @@ Depending on the opcode, a Command contains zero or more structure virtio_of_vri
 Virtio Over Fabrics defines two types of buffer mapping rules.
 
 \paragraph{Stream Transmission}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Stream Transmission}
-Command, Segment Descriptors, and buffer are transmitted in a stream within a connection. The layout in stream:
+Command, Segment Descriptors, and buffer are transmitted in a stream within a
+connection. The layout in stream:
 
 \begin{lstlisting}
 CMDx contains 0 descriptor, CMDy contains (n - m + 1) descriptors and buffer:
@@ -93,7 +108,8 @@ COMPx contains 0 descriptor, COMPy contains (k - j + 1) descriptors and buffer:
      +-----+     +-----++-----+     +-----++-----+
 \end{lstlisting}
 
-An example of a virtio-blk write 8K request(total size: sizeof(Command) + 4 * sizeof(Descriptor) + 8208):
+An example of a virtio-blk write 8K request(total size: sizeof(Command) +
+4 * sizeof(Descriptor) + 8208):
 \begin{lstlisting}
  COMMAND            +------+
                     |opcode|  ->  virtio_of_op_vring
@@ -156,7 +172,8 @@ An example of a virtio-blk write 8K request(total size: sizeof(Command) + 4 * si
                     +------+  -> 8208
 \end{lstlisting}
 
-The Completion of this request(total size: sizeof(Completion) + 1 * sizeof(Descriptor) + 1):
+The Completion of this request(total size: sizeof(Completion) +
+1 * sizeof(Descriptor) + 1):
 \begin{lstlisting}
  COMPLETION         +------+
                     |status|  ->  VIRTIO_OF_SUCCESS
@@ -185,7 +202,8 @@ The Completion of this request(total size: sizeof(Completion) + 1 * sizeof(Descr
                     +------+  -> 1
 \end{lstlisting}
 
-Another example of a virtio-blk read 8K request(total size: sizeof(Command) + 4 * sizeof(Descriptor) + 16):
+Another example of a virtio-blk read 8K request(total size: sizeof(Command) +
+4 * sizeof(Descriptor) + 16):
 \begin{lstlisting}
  COMMAND            +------+
                     |opcode|  ->  virtio_of_op_vring
@@ -244,7 +262,8 @@ Another example of a virtio-blk read 8K request(total size: sizeof(Command) + 4 
                     +------+  -> 16
 \end{lstlisting}
 
-The Completion of this request(total size: sizeof(Completion) + 3 * sizeof(Descriptor) + 8193):
+The Completion of this request(total size: sizeof(Completion) +
+3 * sizeof(Descriptor) + 8193):
 \begin{lstlisting}
  COMPLETION         +------+
                     |status|  ->  VIRTIO_OF_SUCCESS
@@ -298,7 +317,8 @@ The Completion of this request(total size: sizeof(Completion) + 3 * sizeof(Descr
 \end{lstlisting}
 
 \paragraph{Keyed Transmission}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Keyed Transmission}
-Command and Segment Descriptors are transmitted in a message within a connection, and buffer is transmitted by remote memory access.  The layout in message:
+Command and Segment Descriptors are transmitted in a message within a
+connection, and buffer is transmitted by remote memory access.  The layout in message:
 
 \begin{lstlisting}
 CMDx contains 0 descriptor, CMDy contains (n - m + 1) descriptors:
@@ -314,7 +334,8 @@ COMPx contains 0 descriptor, COMPy contains 0 descriptor:
      +-----+     +-----+
 \end{lstlisting}
 
-An example of a virtio-blk write 8K request(message size: sizeof(Command) + 4 * sizeof(Descriptor)):
+An example of a virtio-blk write 8K request(message size: sizeof(Command) +
+4 * sizeof(Descriptor)):
 \begin{lstlisting}
  COMMAND            +------+
                     |opcode|  ->  virtio_of_op_vring
@@ -377,7 +398,8 @@ An example of a virtio-blk write 8K request(message size: sizeof(Command) + 4 * 
                     +------+
 \end{lstlisting}
 
-The target handles Command, reads the remote addresses of DESC0/DESC1/DESC2, writes the remote address of DESC3, then responses Completion:
+The target handles Command, reads the remote addresses of DESC0/DESC1/DESC2,
+writes the remote address of DESC3, then responses Completion:
 \begin{lstlisting}
  COMPLETION         +------+
                     |status|  ->  VIRTIO_OF_SUCCESS
@@ -392,7 +414,8 @@ The target handles Command, reads the remote addresses of DESC0/DESC1/DESC2, wri
                     +------+
 \end{lstlisting}
 
-Another example of a virtio-blk read 8K request(message size: sizeof(Command) + 4 * sizeof(Descriptor)):
+Another example of a virtio-blk read 8K request(message size: sizeof(Command) +
+4 * sizeof(Descriptor)):
 \begin{lstlisting}
  COMMAND            +------+
                     |opcode|  ->  virtio_of_op_vring
@@ -455,7 +478,8 @@ Another example of a virtio-blk read 8K request(message size: sizeof(Command) + 
                     +------+
 \end{lstlisting}
 
-The target handles Command, reads the remote address of DESC0, writes the remote addresses of DESC1/DESC2/DESC3, then responses Completion:
+The target handles Command, reads the remote address of DESC0, writes the remote
+addresses of DESC1/DESC2/DESC3, then responses Completion:
 \begin{lstlisting}
  COMPLETION         +------+
                     |status|  ->  VIRTIO_OF_SUCCESS
@@ -470,14 +494,19 @@ The target handles Command, reads the remote address of DESC0, writes the remote
                     +------+
 \end{lstlisting}
 
-For effective Transmission, stream Segment Descriptors and keyed Segment Descriptors are allowed to use together in a single Command.
+For effective Transmission, stream Segment Descriptors and keyed Segment
+Descriptors are allowed to use together in a single Command.
 
 \begin{itemize}
-\item The initiator MAY discover the maximum stream Transmission size of a Command supported by target. See \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_feature}.
-\item The initiator MAY set the maximum stream Transmission size of a Command supported by initiator. See \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_feature}.
+\item The initiator MAY discover the maximum stream Transmission size of a
+Command supported by target. See \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_feature}.
+\item The initiator MAY set the maximum stream Transmission size of a Command
+supported by initiator. See \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_feature}.
 \end{itemize}
 
-An example of 16 bytes maximum stream Transmission size supported by target, and 1 byte maximum stream Transmission size supported by initiator, a virtio-blk read 8K request(total size: sizeof(Command) + 4 * sizeof(Descriptor) + 16):
+An example of 16 bytes maximum stream Transmission size supported by target,
+and 1 byte maximum stream Transmission size supported by initiator, a virtio-blk
+read 8K request(total size: sizeof(Command) + 4 * sizeof(Descriptor) + 16):
 \begin{lstlisting}
  COMMAND            +------+
                     |opcode|  ->  virtio_of_op_vring
@@ -542,7 +571,9 @@ An example of 16 bytes maximum stream Transmission size supported by target, and
                     +------+  -> 16
 \end{lstlisting}
 
-The target handles Command, reads 16 bytes from request described by DESC0, writes the remote addresses of DESC1/DESC2, then responses Completion(total size: sizeof(Completion) + sizeof(Descriptor) + 1):
+The target handles Command, reads 16 bytes from request described by DESC0,
+writes the remote addresses of DESC1/DESC2, then responses Completion(total
+size: sizeof(Completion) + sizeof(Descriptor) + 1):
 \begin{lstlisting}
  COMPLETION         +------+
                     |status|  ->  VIRTIO_OF_SUCCESS
@@ -574,7 +605,8 @@ The target handles Command, reads 16 bytes from request described by DESC0, writ
 \subsubsection{Commands Definition}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition}
 This section defines command structures for Virtio Over Fabrics.
 
-A common structure virtio_of_value is fixed to 8 bytes and MUST be used as one of the following format:
+A common structure virtio_of_value is fixed to 8 bytes and MUST be used as one
+of the following format:
 
 \begin{itemize}
 \item u8
@@ -587,7 +619,9 @@ A common structure virtio_of_value is fixed to 8 bytes and MUST be used as one o
 There is command_id(le16) field in each Command and Completion:
 
 \begin{itemize}
-\item Generally the initiator allocates a Command ID and specifies the command_id field of a Command, and the target MUST specifies the same Command ID in command_id field of Completion.
+\item Generally the initiator allocates a Command ID and specifies the
+command_id field of a Command, and the target MUST specifies the same Command ID
+in command_id field of Completion.
 \item The initiator MUST guarantee each Command ID is unique in the inflight Commands.
 \item Command ID 0xff00 - 0xffff is reserved for control queue to delivery asynchronous event.
 \end{itemize}
@@ -607,13 +641,18 @@ Command ID & Description \\
 \end{tabular}
 
 \paragraph{Connect Command}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Connect Command}
-The Connect command is used to establish Virtio Over Fabrics queue. The control queue MUST be established firstly, then the Connect command establishes an association between the initiator and the target.
+The Connect command is used to establish Virtio Over Fabrics queue. The control
+queue MUST be established firstly, then the Connect command establishes an
+association between the initiator and the target.
 
 The Target ID of 0xffff is reserved, then:
 \begin{itemize}
-\item The Target ID of 0xffff MUST be specified as the Target ID in a Connect Command for the control queue.
-\item The target SHOULD allocate any available Target ID to the initiator, and return the allocated Target ID in the Completion.
-\item The returned Target ID MUST be specified as the Target ID, and the Queue ID MUST be specified in a Connect Command for the virtqueue.
+\item The Target ID of 0xffff MUST be specified as the Target ID in a Connect
+Command for the control queue.
+\item The target SHOULD allocate any available Target ID to the initiator,
+and return the allocated Target ID in the Completion.
+\item The returned Target ID MUST be specified as the Target ID, and the Queue ID
+MUST be specified in a Connect Command for the virtqueue.
 \end{itemize}
 
 The Connect command has following structure:
@@ -632,7 +671,9 @@ struct virtio_of_command_connect {
 };
 \end{lstlisting}
 
-The Connect commands MUST contains one Segment Descriptor and one structure virtio_of_command_connect to specify Initiator VQN and Target VNQ, virtio_of_command_connect has following structure:
+The Connect commands MUST contains one Segment Descriptor and one structure
+virtio_of_command_connect to specify Initiator VQN and Target VNQ,
+virtio_of_command_connect has following structure:
 
 \begin{lstlisting}
 struct virtio_of_connect {
@@ -647,8 +688,13 @@ struct virtio_of_connect {
 The control queue uses Feature Command to get or set features. This command is used for:
 
 \begin{itemize}
-\item The initiator/target features. This is used to negotiate transport layer features. See \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_feature} and \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_feature}.
-\item The driver/device features. This is used to negotiate Virtio Based device features which is similar to PCI based device. See \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_device_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_device_feature} and \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_driver_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_driver_feature}.
+\item The initiator/target features. This is used to negotiate transport layer features.
+See \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_feature}
+and \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_feature}.
+\item The driver/device features. This is used to negotiate Virtio Based device
+features which is similar to PCI based device.
+See \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_device_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_device_feature}
+and \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_driver_feature}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_driver_feature}.
 \end{itemize}
 
 The Feature Command has following structure:
@@ -664,7 +710,8 @@ struct virtio_of_command_feature {
 
 \paragraph{Queue Command}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Queue Command}
 
-The control queue uses Queue Command to get or set properties on a specific queue. The Queue Command has following structure:
+The control queue uses Queue Command to get or set properties on a specific queue.
+The Queue Command has following structure:
 
 \begin{lstlisting}
 struct virtio_of_command_queue {
@@ -680,7 +727,8 @@ struct virtio_of_command_queue {
 
 \paragraph{Config Command}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Config Command}
 
-The control queue uses Config Command to get or set configure on device. The Config Command has following structure:
+The control queue uses Config Command to get or set configure on device.
+The Config Command has following structure:
 
 \begin{lstlisting}
 struct virtio_of_command_config {
@@ -695,7 +743,8 @@ struct virtio_of_command_config {
 
 \paragraph{Common Command}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command}
 
-The control queue uses Common Command to get or set common properties on device(i.e. get device ID). The Common Command has following structure:
+The control queue uses Common Command to get or set common properties on
+device(i.e. get device ID). The Common Command has following structure:
 
 \begin{lstlisting}
 struct virtio_of_command_common {
@@ -712,7 +761,8 @@ struct virtio_of_command_common {
 
 \paragraph{Vring Command}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Vring Command}
 
-Both control queue and virtqueue use Vring Command to transmit buffer. The Vring Command has following structure:
+Both control queue and virtqueue use Vring Command to transmit buffer.
+The Vring Command has following structure:
 
 \begin{lstlisting}
 struct virtio_of_command_vring {
@@ -728,7 +778,8 @@ struct virtio_of_command_vring {
 
 \paragraph{Completion}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Completion}
 
-The target responses Completion to the initiator to report command status, device properties, and transmit buffer. The Completion has following structure:
+The target responses Completion to the initiator to report command status,
+device properties, and transmit buffer. The Completion has following structure:
 
 \begin{lstlisting}
 struct virtio_of_completion {
@@ -742,7 +793,9 @@ struct virtio_of_completion {
 };
 \end{lstlisting}
 
-Note that Virtio Over Fabrics does not define an interrupt mechanism, generally the initiator receives a Completion, it SHOULD generate a host interrupt(if no interrupt suspending on device).
+Note that Virtio Over Fabrics does not define an interrupt mechanism, generally
+the initiator receives a Completion, it SHOULD generate a host interrupt
+(if no interrupt suspending on device).
 
 \subsubsection{Opcodes Definition}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition}
 This section defines command opcodes for Virtio Over Fabrics:
@@ -769,15 +822,20 @@ This section defines command opcodes for Virtio Over Fabrics:
 
 \paragraph{virtio_of_op_connect}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_connect}
 
-virtio_of_op_connect is used to connect a target for both control queue and virtqueue. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Connect Command} and specify the ndesc field as 1, also contains 1 structure virtio_of_vring_desc filled by structure virtio_of_command_status.
+virtio_of_op_connect is used to connect a target for both control queue and virtqueue.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Connect Command}
+and specify the ndesc field as 1, also contains 1 structure virtio_of_vring_desc
+filled by structure virtio_of_command_status.
 
 \paragraph{virtio_of_op_discconnect}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_discconnect}
 
-virtio_of_op_discconnect is used to disconnect a target for both control queue and virtqueue. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command}.
+virtio_of_op_discconnect is used to disconnect a target for both control queue and virtqueue.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command}.
 
 \paragraph{virtio_of_op_get_feature}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_feature}
 
-virtio_of_op_get_feature is used to get features of target for control queue only. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Feature Command}.
+virtio_of_op_get_feature is used to get features of target for control queue only.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Feature Command}.
 
 \begin{tabular}{ |l|l|l| }
 \hline
@@ -791,59 +849,86 @@ virtio_of_feature_stream_size & 0x1 & Get the target/set the initiator stream bu
 
 \paragraph{virtio_of_op_set_feature}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_feature}
 
-virtio_of_op_set_feature is used to set features of initiator for control queue only. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Feature Command}.
+virtio_of_op_set_feature is used to set features of initiator for control queue only.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Feature Command}.
 
 \paragraph{virtio_of_op_keepalive}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_keepalive}
 
-virtio_of_op_keepalive is used to keep alive with the target for control queue only. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command}.
+virtio_of_op_keepalive is used to keep alive with the target for control queue only.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command}.
 
 \paragraph{virtio_of_op_vring}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_vring}
 
-virtio_of_op_vring is used to transmit buffer for both control queue and virtqueue. The initiator MUST issues \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Vring Command} and specify the ndesc field as the number of buffer segments, also contains ndesc structure virtio_of_vring_desc. Each structure virtio_of_vring_desc is filled by each buffer segment one by one.
+virtio_of_op_vring is used to transmit buffer for both control queue and virtqueue.
+The initiator MUST issues \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Vring Command}
+and specify the ndesc field as the number of buffer segments,
+also contains ndesc structure virtio_of_vring_desc.
+Each structure virtio_of_vring_desc is filled by each buffer segment one by one.
 
 \paragraph{virtio_of_op_get_vendor_id}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_vendor_id}
 
-virtio_of_op_get_vendor_id is used to get vendor id for control queue only. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command}, and reads from value field of Completion as le32.
+virtio_of_op_get_vendor_id is used to get vendor id for control queue only.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command},
+and reads from value field of Completion as le32.
 
 \paragraph{virtio_of_op_get_device_id}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_device_id}
 
-virtio_of_op_get_device_id is used to get device id for control queue only. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command}, and reads from value field of Completion as le32.
+virtio_of_op_get_device_id is used to get device id for control queue only.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command},
+and reads from value field of Completion as le32.
 
 \paragraph{virtio_of_op_get_generation}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_generation}
 
-virtio_of_op_get_generation is used to get config generation for control queue only. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command}, and reads from value field of Completion as le32.
+virtio_of_op_get_generation is used to get config generation for control queue only.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command},
+and reads from value field of Completion as le32.
 
 \paragraph{virtio_of_op_get_status}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_status}
 
-virtio_of_op_get_status is used to get device status for control queue only. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command}, and reads from value field of Completion as le32.
+virtio_of_op_get_status is used to get device status for control queue only.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command},
+and reads from value field of Completion as le32.
 
 \paragraph{virtio_of_op_set_status}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_status}
 
-virtio_of_op_set_status is used to set device status for control queue only. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command}, and specify the value field of Common Command as le32.
+virtio_of_op_set_status is used to set device status for control queue only.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command},
+and specify the value field of Common Command as le32.
 
 \paragraph{virtio_of_op_get_device_feature}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_device_feature}
 
-virtio_of_op_get_device_feature is used to get device feature for control queue only. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Feature Command}, and reads from value field of Completion as le64.
+virtio_of_op_get_device_feature is used to get device feature for control queue only.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Feature Command},
+and reads from value field of Completion as le64.
 
 The initiator uses feature_select field to select which feature bits to get. Value 0x0 selects Feature Bits 0 to 63, 0x1 selects Feature Bits 64 to 128, etc.
 
 \paragraph{virtio_of_op_set_driver_feature}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_driver_feature}
 
-virtio_of_op_set_driver_feature is used to set driver feature for control queue only. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Feature Command}, and specify the value field of Common Command as le64.
+virtio_of_op_set_driver_feature is used to set driver feature for control queue only.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Feature Command},
+and specify the value field of Common Command as le64.
 
-The initiator uses feature_select field to select which feature bits to set. Value 0x0 selects Feature Bits 0 to 63, 0x1 selects Feature Bits 64 to 128, etc.
+The initiator uses feature_select field to select which feature bits to set.
+Value 0x0 selects Feature Bits 0 to 63, 0x1 selects Feature Bits 64 to 128, etc.
 
 \paragraph{virtio_of_op_get_num_queues}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_num_queues}
 
-virtio_of_op_get_num_queues is used to get the number of queues for control queue only. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command}, and reads from value field of Completion as le16.
+virtio_of_op_get_num_queues is used to get the number of queues for control queue only.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Common Command},
+and reads from value field of Completion as le16.
 
 \paragraph{virtio_of_op_get_queue_size}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_queue_size}
 
-virtio_of_op_get_queue_size is used to get the size of a specified queue for control queue only. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Queue Command} with specified queue_id, and reads from value field of Completion as le16.
+virtio_of_op_get_queue_size is used to get the size of a specified queue for control queue only.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Queue Command} with specified queue_id,
+and reads from value field of Completion as le16.
 
 \paragraph{virtio_of_op_get_config}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_config}
 
-virtio_of_op_get_config is used to get the config of a device for control queue only. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Config Command} with specified offset and bytes, and reads from value field of Completion.
+virtio_of_op_get_config is used to get the config of a device for control queue only.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Config Command} with specified offset and bytes,
+and reads from value field of Completion.
 
 The bytes field supports only:
 
@@ -856,7 +941,8 @@ The bytes field supports only:
 
 \paragraph{virtio_of_op_set_config}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_config}
 
-virtio_of_op_set_config is used to set the config of a device for control queue only. The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Config Command} with specified offset and bytes and value fields.
+virtio_of_op_set_config is used to set the config of a device for control queue only.
+The initiator MUST issue a \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Config Command} with specified offset and bytes and value fields.
 
 The bytes field supports only:
 
@@ -904,17 +990,33 @@ This section defines status for Virtio Over Fabrics Completion.
 
 \subsection{Transport Binding}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transport Binding}
 \subsubsection{TCP}\label{sec:Virtio Transport Options / Virtio Over Fabrics / ransport Binding / TCP}
-TCP MUST use \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Stream Transmission}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Stream Transmission}.
+TCP MUST use \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Stream Transmission}
+~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Stream Transmission}.
 
 \subsubsection{RDMA}\label{sec:Virtio Transport Options / Virtio Over Fabrics / ransport Binding / RDMA}
-RDMA MUST use \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Keyed Transmission}~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Keyed Transmission}.
+RDMA MUST use \ref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Keyed Transmission}
+~\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Commands Definition / Keyed Transmission}.
 
 \subsection{Device Initialization}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Device Initialization}
 \begin{enumerate}
-\item The control queue MUST be established firstly, once the reliable connection is ready, the initiator MUST issue \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_connect} to create association with the target.
-\item The initiator SHOULD issue \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_feature} to discover the capabilities offered by the target.
-\item The initiator SHOULD issue \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_feature} to negotiate the capabilities.
-\item The initiator SHOULD continue initialization like PCI base devices, i.e. issue \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_vendor_id} to get the vendor ID.
-\item After discovering the number of virtqueues by \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_num_queues}, the initiator SHOULD create virtqueue one by one by \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_connect}.
-\item The virtqueue SHOULD issue \nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_vring} to transmit buffer.
+\item The control queue MUST be established firstly, once the reliable
+connection is ready, the initiator MUST issue
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_connect}
+to create association with the target.
+\item The initiator SHOULD issue
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_feature}
+to discover the capabilities offered by the target.
+\item The initiator SHOULD issue
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_set_feature}
+to negotiate the capabilities.
+\item The initiator SHOULD continue initialization like PCI base devices, i.e. issue
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_vendor_id}
+to get the vendor ID.
+\item After discovering the number of virtqueues by
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_get_num_queues},
+the initiator SHOULD create virtqueue one by one by
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_connect}.
+\item The virtqueue SHOULD issue
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Transmission Protocol / Opcodes Definition / virtio_of_op_vring}
+to transmit buffer.
 \end{enumerate}
