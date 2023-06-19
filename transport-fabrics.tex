@@ -194,6 +194,8 @@ Opcodes (u16 type) of Virtio-oF Commands are as follows:
 #define virtio_of_op_get_feature           0x0004
 #define virtio_of_op_set_feature           0x0005
 #define virtio_of_op_get_keyed_num_descs   0x0100
+#define virtio_of_op_get_keyed_eager_buf   0x0102
+#define virtio_of_op_vq_keyed_eager_buf    0x0ffe
 #define virtio_of_op_vq                    0x0fff
 #define virtio_of_op_get_vendor_id         0x1000
 #define virtio_of_op_get_device_id         0x1001
@@ -349,6 +351,9 @@ The feature bits of a Virtio-oF device instance are as follows:
 \begin{lstlisting}
 /* support virtio_of_op_get_keyed_num_descs to get the maximum number of keyed descriptors */
 #define VIRTIO_OF_F_KEYED_NUM_DESCS            0
+
+/* support virtio_of_op_get_keyed_eager_buf to get the eager buffers of the Virtio-oF virtqueues */
+#define VIRTIO_OF_F_KEYED_EAGER_BUF            1
 \end{lstlisting}
 
 \paragraph{Set Feature Command}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Commands Definition / Opcodes / Set Feature Command}
@@ -404,6 +409,82 @@ struct virtio_of_completion_get_keyed_num_descs {
         /* the maximum number of keyed descriptors */
         u8 descs;
         u8 reserved[11];
+};
+\end{lstlisting}
+
+\paragraph{Get Keyed Eager Buffers Command}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Commands Definition / Opcodes / Get Keyed Eager Buffers Command}
+A Virtio-oF virtqueue may expose 0 or more keyed buffers that allow the Virtio-oF initiator to write directly to the Virtio-oF device instance.
+The Keyed Eager Buffers mechanism reduces round-trip time on the fabrics.
+The Get Keyed Eager Buffers Command is used to get the eager buffers of a Virtio-oF virtqueue,
+and it is executed on the Virtio-oF control queue.
+
+The structure of the Get Keyed Deager Buffers Command structure is as follows:
+\begin{lstlisting}
+struct virtio_of_command_get_keyed_eager_buf {
+        /* opcode is virtio_of_op_get_keyed_eager_buf */
+        le16 opcode;
+        /* unique ID for all in-flight commands */
+        le16 command_id;
+        /* the Virtio-oF virtqueue index */
+        le16 vq_index;
+        /* the maximum number of eager buffer descriptors to obtain */
+        u8 descs;
+        u8 reserved[9];
+};
+\end{lstlisting}
+
+The Get Keyed Eager Buffers Body is a contiguous memory of \texttt{descs} elements (virtio_of_keyed_desc type).
+
+The structure of the Get Keyed Eager Buffers Completion is as follows:
+\begin{lstlisting}
+struct virtio_of_completion_get_keyed_eager_buf {
+        le16 status;
+        le16 command_id;
+        /* the number of eager buffer descriptors */
+        u8 descs;
+        u8 reserved[11];
+};
+\end{lstlisting}
+
+Note: multiple keyed eager buffers compose a logical memory range sequentially.
+To locate a position within the range, use the offset and length values as follows:
+\begin{lstlisting}
+    +-----------+-----------+     +-----------+
+    |addr0, len0|addr1, len1| ... |addrN, lenN|
+    +-----------+-----------+     +-----------+
+                   |                    |
+                   \---offset, length---/
+\end{lstlisting}
+
+\paragraph{VQ Keyed Eager Buffers Command}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Commands Definition / Opcodes / VQ Keyed Eager Buffers Command}
+The Virtio-oF initiator must write device-readable virtqueue buffers into the Virtio-oF virtqueue eager buffers,
+then issue The VQ Keyed Eager Buffers Command to transmit virtqueue buffers.
+This command is executed on the Virtio-oF virtqueue only.
+
+The structure of the VQ Keyed Eager Buffers Command structure is as follows:
+\begin{lstlisting}
+struct virtio_of_command_vq_keyed_eager_buf {
+        /* opcode is virtio_of_op_vq_keyed_eager_buf */
+        le16 opcode;
+        /* unique ID for all in-flight commands */
+        le16 command_id;
+        /* the offset of Virtio-oF virtqueue eager buffers */
+        le32 out_offset;
+        /* the length of device-readable virtqueue buffers */
+        le32 out_length;
+        /* the length of device-writable virtqueue buffers */
+        le32 in_length;
+};
+\end{lstlisting}
+
+The structure of the VQ Keyed Eager Buffers Completion is as follows:
+\begin{lstlisting}
+struct virtio_of_completion_vq_keyed_eager_buf {
+        le16 status;
+        le16 command_id;
+        /* the length of virtqueue buffers from Virtio-oF target */
+        le32 length;
+        u8 reserved[8];
 };
 \end{lstlisting}
 
