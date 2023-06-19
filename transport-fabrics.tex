@@ -739,3 +739,29 @@ struct virtio_of_completion_set_config {
         u8 reserved[12];
 };
 \end{lstlisting}
+
+
+\subsection{Transport Binding}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transport Binding}
+
+\subsubsection{TCP/IP}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transport Binding / TCP IP}
+Virtio-oF supports both TCP/IPv4 and TCP/IPv6, it uses
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Protocol Data Unit/ Stream Data Transfers}.
+A TCP/IP based Virtio-oF target uses port 8549 (CRC-16/ARC of "Virtio") by default.
+
+\subsubsection{TLS TCP/IP}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transport Binding / TLS TCP IP}
+Virtio-oF supports both TLS v1.2 and TLS v1.3 over the underlying TCP/IPv4 and TCP/IPv6, it uses
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Protocol Data Unit/ Stream Data Transfers}.
+A TLS TCP/IP based Virtio-oF target uses port 8549 (CRC-16/ARC of "Virtio") by default.
+
+\subsubsection{RDMA}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transport Binding / RDMA}
+Virtio-oF supports RDMA, it uses
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Protocol Data Unit/ Keyed Data Transfers}.
+A RoCEv2 based Virtio-oF target uses UDP port 8549 (CRC-16/ARC of "Virtio") by default, and a iWARP based Virtio-oF target uses TCP port 8549 by default.
+
+RDMA uses the following operations:
+\begin{itemize}
+\item The Virtio-oF initiator sends a PDU by RDMA SEND.
+\item The Virtio-oF target reads the remote data by RDMA SEND.
+\item The Virtio-oF target writes the remote data by RDMA WRITE.
+\item The Virtio-oF target sends a PDU by RDMA SEND.
+\end{itemize}
