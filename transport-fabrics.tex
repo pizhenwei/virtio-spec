@@ -30,3 +30,18 @@ for example, to get the Virtio Device ID.
 which executes the bulk data transport on virtio devices.
 \item The arrival of data on the Virtio-oF queue indicates that a notification has arrived.
 \end{itemize}
+
+
+\subsection{Virtio-oF Qualified Name}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Virtio-oF Qualified Name}
+Virtio-oF Qualified Names (VQNs) are used to uniquely describe a Virtio-oF initiator
+or a Virtio-oF target for identification.
+
+A VQN is encoded as a string of Unicode characters with the following properties:
+
+\begin{itemize}
+\item The encoding is UTF-8 (refer to RFC 3629).
+\item The characters dash('-'), dot ('.') and slash('/') are used in formatting.
+\item The string is NUL terminated.
+\item The maximum name is 256 bytes in length, including the NUL character.
+\item There is no strict style limitation.
+\end{itemize}
