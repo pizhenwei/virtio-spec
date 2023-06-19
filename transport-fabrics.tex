@@ -1,0 +1,32 @@
+\section{Virtio Over Fabrics}\label{sec:Virtio Transport Options / Virtio Over Fabrics}
+
+Virtio Over Fabrics (Virtio-oF) enables operations over fabrics that rely
+primarily on message passing.
+
+Virtio-oF uses a reliable connection to transmit data. The reliable
+connection facilitates communication between entities playing the following roles:
+
+\begin{itemize}
+\item A Virtio-oF initiator functions as a Virtio-oF client.
+The Virtio-oF initiator sends commands and associated data from the driver
+to the Virtio-oF target.
+\item A Virtio-oF target functions as a Virtio-oF server.
+The Virtio-oF target forwards commands to the device and sends completions
+and associated data back to the Virtio-oF initiator.
+\end{itemize}
+
+Virtio-oF has the following features:
+
+\begin{itemize}
+\item A Virtio-oF target is allowed to be connected by 0 or more Virtio-oF initiators.
+\item A Virtio-oF initiator is allowed to connect to a single Virtio-oF target only.
+A Virtio-oF device instance is a virtio device that the Virtio-oF initiator is
+accessing through the Virtio-oF target.
+\item There is a one-to-one mapping between the Virtio-oF queue and the reliable connection.
+\item There is one, and only one, Virtio-oF control queue for a Virtio-oF device instance.
+The Virtio-oF control queue is used to execute control commands,
+for example, to get the Virtio Device ID.
+\item There is a one-to-one mapping between virtqueue and Virtio-oF virtqueue
+which executes the bulk data transport on virtio devices.
+\item The arrival of data on the Virtio-oF queue indicates that a notification has arrived.
+\end{itemize}
