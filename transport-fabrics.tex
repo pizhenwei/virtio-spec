@@ -759,3 +759,36 @@ RDMA uses the following operations:
 \item The Virtio-oF target writes the remote data by RDMA WRITE.
 \item The Virtio-oF target sends a PDU by RDMA SEND.
 \end{itemize}
+
+
+\subsection{Device Initialization}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Device Initialization}
+\begin{enumerate}
+\item The Virtio-oF control queue must be established first by connecting
+from the Virtio-oF initiator to the Virtio-oF target and issuing a
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Commands Definition / Opcodes / Connect Command}
+to create a Virtio-oF device instance.
+\item Optionally, The Virtio-oF initiator issues a
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Commands Definition / Opcodes / Get Feature Command}
+to discover the features offered by the Virtio-oF device instance.
+After feature negotiation, the Virtio-oF initiator also issues a
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Commands Definition / Opcodes / Set Feature Command}
+to finalize features.
+\item The Virtio-oF initiator issues a
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Commands Definition / Opcodes / Get Device ID Command}
+and
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Commands Definition / Opcodes / Get Vendor ID Command}
+for virtio driver.
+\item During virtio device initialization, the Virtio-oF initiator issues a
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Commands Definition / Opcodes / Get Status Command}
+and
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Commands Definition / Opcodes / Set Status Command}.
+\item Optionally, The Virtio-oF initiator issues a
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Commands Definition / Opcodes / Get VQ Size Command}
+to get the size of a Virtio-oF virtqueue.
+\item The Virtio-oF initiator issues a
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Commands Definition / Opcodes / Connect Command}
+to establish a Virtio-oF virtqueue.
+\item The Virtio-oF initiator creates Virtio-oF virtqueues one by one, then issues a
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Commands Definition / Opcodes / VQ Command}
+to supply virtqueue buffers to the Virtio-oF device instance on Virtio-oF virtqueues.
+\end{enumerate}
