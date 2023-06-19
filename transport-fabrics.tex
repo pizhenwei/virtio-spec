@@ -45,3 +45,71 @@ A VQN is encoded as a string of Unicode characters with the following properties
 \item The maximum name is 256 bytes in length, including the NUL character.
 \item There is no strict style limitation.
 \end{itemize}
+
+
+\subsection{Protocol Data Unit}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Protocol Data Unit}
+This section defines Virtio-oF Protocol Data Unit (PDU) for both the Virtio-oF control queue and Virtio-oF virtqueue.
+
+Virtio-oF PDU is a unit of information exchanged between a Virtio-oF initiator and a Virtio-oF target:
+\begin{itemize}
+\item A request Virtio-oF PDU from Virtio-oF initiator to Virtio-oF target contains command and associated data, if present.
+\item A response Virtio-oF PDU from Virtio-oF target to Virtio-oF initiator contains completion and associated data, if present.
+\end{itemize}
+
+\subsubsection{Stream Data Transfers}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Protocol Data Unit/ Stream Data Transfers}
+Stream-based (i.e. TCP/IP) Virtio-oF queue transfers Virtio-oF PDUs in a streaming fashion.
+
+The layout in a stream:
+\begin{lstlisting}
+PDUx and PDUz contain a command only, PDUy contains a command and data:
+
+     +----+     +---------+     +----+
+     |PDUx|     |   PDUy  |     |PDUz|
+ ... +----+ ... +----+----+ ... +----+ ...
+     |CMD |     |CMD |Data|     |CMD |
+     +----+     +---------+     +----+
+
+PDUl contains completion only, PDUm and PDUn contain completion and data:
+
+     +----+     +---------+     +---------+
+     |PDUl|     |   PDUm  |     |   PDUn  |
+ ... +----+ ... +----+----+ ... +----+----+ ...
+     |COMP|     |COMP|Data|     |COMP|Data|
+     +----+     +---------+     +---------+
+\end{lstlisting}
+
+\subsubsection{Keyed Data Transfers}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Protocol Data Unit/ Keyed Data Transfers}
+Message-based (i.e. RDMA) Virtio-oF queue transfers Virtio-oF PDUs in a message fashion, and uses the following structure to describe the remote data:
+
+\begin{lstlisting}
+struct virtio_of_keyed_desc {
+        /* the remote address of data */
+        le64 addr;
+        /* the length of data */
+        le32 length;
+        /* the key to access the remote data */
+        le32 key;
+};
+\end{lstlisting}
+
+A Virtio-oF control queue supports 1 keyed descriptor, and a Virtio-oF virtqueue supports 1 or more keyed descriptors.
+
+The PDUs of messages:
+\begin{lstlisting}
+PDUx contains a command only, PDUy contains a command and 1 descriptor,
+and PDUz contains a command and k - j + 1 descriptors.
+
+     +----+     +---------+     +--------------------+
+     |PDUx|     |   PDUy  |     |        PDUz        |
+ ... +----+ ... +----+----+ ... +----+-----+---+-----+ ...
+     |CMD |     |CMD |DESC|     |CMD |DESCj|...|DESCk|
+     +----+     +---------+     +----------+---+-----+
+
+PDUl, PDUm, and PDUn contain completion only.
+
+     +----+     +----+     +----+
+     |PDUl|     |PDUm|     |PDUn|
+ ... +----+ ... +----+ ... +----+ ...
+     |COMP|     |COMP|     |COMP|
+     +----+     +----+     +----+
+\end{lstlisting}
