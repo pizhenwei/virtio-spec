@@ -733,3 +733,29 @@ struct virtio_of_completion_config_change {
 \paragraph{Keepalive Completion}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Commands Definition / Opcodes / Keepalive Completion}
 A Keepalive Completion is used as a health check mechanism to detect when a Virtio-oF initiator becomes unavailable, it is used by a Virtio-oF device instance for the Virtio-oF control queue only.
 Once the Virtio-oF initiator becomes unavailable, the Virtio-oF target should destroy the Virtio-oF device instance and associated resources.
+
+
+\subsection{Transport Binding}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transport Binding}
+
+\subsubsection{TCP/IP}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transport Binding / TCP IP}
+Virtio-oF supports both TCP/IPv4 and TCP/IPv6, it uses
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Protocol Data Unit/ Stream Data Transfers}.
+A TCP/IP based Virtio-oF target uses port 8549 (CRC-16/ARC of "Virtio") by default.
+
+\subsubsection{TLS TCP/IP}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transport Binding / TLS TCP IP}
+Virtio-oF supports both TLS v1.2 and TLS v1.3 over the underlying TCP/IPv4 and TCP/IPv6, it uses
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Protocol Data Unit/ Stream Data Transfers}.
+A TLS TCP/IP based Virtio-oF target uses port 8549 (CRC-16/ARC of "Virtio") by default.
+
+\subsubsection{RDMA}\label{sec:Virtio Transport Options / Virtio Over Fabrics / Transport Binding / RDMA}
+Virtio-oF supports RDMA, it uses
+\nameref{sec:Virtio Transport Options / Virtio Over Fabrics / Protocol Data Unit/ Keyed Data Transfers}.
+A RoCEv2 based Virtio-oF target uses UDP port 8549 (CRC-16/ARC of "Virtio") by default, and a iWARP based Virtio-oF target uses TCP port 8549 by default.
+
+RDMA uses the following operations:
+\begin{itemize}
+\item The Virtio-oF initiator sends a PDU by RDMA SEND.
+\item The Virtio-oF target reads the remote data by RDMA READ.
+\item The Virtio-oF target writes the remote data by RDMA WRITE.
+\item The Virtio-oF target sends a PDU by RDMA SEND.
+\end{itemize}
